@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Subscription related fields
+  subscriptionType SubscriptionType @default(FREE)
+  subscriptionEnd  DateTime?
+  
+  // Usage tracking
+  dailyUsage       Int      @default(0)
+  lastUsageReset   DateTime @default(now())
+  totalVideos      Int      @default(0)
+
+  // Relations
+  videos       Video[]
+  chatSessions ChatSession[]
+
+  @@map("users")
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  youtubeId   String   @unique
+  title       String?
+  description String?
+  thumbnailUrl String?
+  duration    String?
+  channelName String?
+  publishedAt DateTime?
+  
+  // Processing status
+  status      VideoStatus @default(PENDING)
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  userId      String
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transcript  Transcript?
+  summaries   Summary[]
+  chatSessions ChatSession[]
+
+  @@map("videos")
+}
+
+model Transcript {
+  id        String   @id @default(cuid())
+  content   String
+  language  String?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  videoId   String   @unique
+  video     Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("transcripts")
+}
+
+model Summary {
+  id        String      @id @default(cuid())
+  content   String
+  type      SummaryType @default(STANDARD)
+  createdAt DateTime    @default(now())
+  
+  // Relations
+  videoId   String
+  video     Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("summaries")
+}
+
+model ChatSession {
+  id        String   @id @default(cuid())
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoId   String
+  video     Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  content   String
+  role      MessageRole
+  createdAt DateTime    @default(now())
+  
+  // Relations
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+enum SubscriptionType {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+enum VideoStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SummaryType {
+  STANDARD
+  DETAILED
+  BULLET_POINTS
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
