@@ -11,6 +11,10 @@ export const validateRegister = (data: any) => {
       'string.min': 'Password must be at least 6 characters long',
       'any.required': 'Password is required',
     }),
+    name: Joi.string().min(2).max(100).optional().messages({
+      'string.min': 'Name must be at least 2 characters long',
+      'string.max': 'Name cannot exceed 100 characters',
+    }),
     firstName: Joi.string().min(2).max(50).optional().messages({
       'string.min': 'First name must be at least 2 characters long',
       'string.max': 'First name cannot exceed 50 characters',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
@@ -8,6 +8,8 @@ import { loginSchema } from '../utils/validation';
 import { APP_NAME } from '../utils/constants';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
+import { initializeGoogleAuth, signInWithGoogle } from '../services/googleAuth';
+
 
 interface LoginFormData {
   email: string;
@@ -20,6 +22,8 @@ const Login: React.FC = () => {
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/dashboard';
+
+  useEffect(() => {initializeGoogleAuth(); }, []);
 
   const {
     register,
@@ -125,6 +129,7 @@ const Login: React.FC = () => {
             <div className="mt-6 grid grid-cols-1 gap-3">
               <button
                 type="button"
+                onClick={signInWithGoogle}
                 className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 transition-colors"
                 disabled={loading}
               >

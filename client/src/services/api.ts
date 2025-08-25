@@ -44,25 +44,25 @@ class ApiService {
     );
   }
 
-  async get<T>(url: string): Promise<T> {
-    const response = await this.client.get<ApiResponse<T>>(url);
-    return response.data.data as T;
-  }
+async get<T>(url: string): Promise<T> {
+  const response = await this.client.get(url);
+  return response.data;
+}
 
-  async post<T>(url: string, data?: any): Promise<T> {
-    const response = await this.client.post<ApiResponse<T>>(url, data);
-    return response.data.data as T;
-  }
+async post<T>(url: string, data?: any): Promise<T> {
+  const response = await this.client.post(url, data);
+  return response.data;
+}
 
-  async put<T>(url: string, data?: any): Promise<T> {
-    const response = await this.client.put<ApiResponse<T>>(url, data);
-    return response.data.data as T;
-  }
+async put<T>(url: string, data?: any): Promise<T> {
+  const response = await this.client.put(url, data);
+  return response.data;
+}
 
-  async delete<T>(url: string): Promise<T> {
-    const response = await this.client.delete<ApiResponse<T>>(url);
-    return response.data.data as T;
-  }
+async delete<T>(url: string): Promise<T> {
+  const response = await this.client.delete(url);
+  return response.data;
+}
 }
 
 export const apiService = new ApiService();

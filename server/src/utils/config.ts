@@ -13,6 +13,10 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET!,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   
+  // Google OAuth
+  googleClientId: process.env.GOOGLE_CLIENT_ID!,
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+
   // External APIs
   openaiApiKey: process.env.OPENAI_API_KEY!,
   youtubeApiKey: process.env.YOUTUBE_API_KEY!,
@@ -30,7 +34,9 @@ const requiredEnvVars = [
   'DATABASE_URL',
   'JWT_SECRET',
   'OPENAI_API_KEY',
-  'YOUTUBE_API_KEY'
+  'YOUTUBE_API_KEY',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET'
 ];
 
 for (const envVar of requiredEnvVars) {

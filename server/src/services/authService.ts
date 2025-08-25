@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 export class AuthService {
   static async register(data: RegisterRequest): Promise<AuthResponse> {
-    const { email, password, firstName, lastName } = data;
+    const { email, password, name, firstName, lastName } = data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -21,13 +21,23 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Handle name field - if 'name' is provided, split it into first and last name
+    let userFirstName = firstName;
+    let userLastName = lastName;
+    
+    if (name && !firstName && !lastName) {
+      const nameParts = name.trim().split(' ');
+      userFirstName = nameParts[0];
+      userLastName = nameParts.slice(1).join(' ') || undefined;
+    }
+
     // Create user
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
-        firstName,
-        lastName,
+        firstName: userFirstName,
+        lastName: userLastName,
       },
       select: {
         id: true,
@@ -37,6 +47,7 @@ export class AuthService {
         subscriptionType: true,
         dailyUsage: true,
         totalVideos: true,
+        createdAt: true,
       },
     });
 
@@ -47,11 +58,14 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName || undefined,
-        lastName: user.lastName || undefined,
-        subscriptionType: user.subscriptionType.toString(),
-        dailyUsage: user.dailyUsage,
-        totalVideos: user.totalVideos,
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        createdAt: user.createdAt.toISOString(),
+        subscription: {
+          plan: user.subscriptionType.toLowerCase() === 'premium' ? 'premium' : 'free',
+          status: 'active',
+          dailyLimit: user.subscriptionType === 'FREE' ? 2 : 50,
+          dailyUsage: user.dailyUsage,
+        },
       },
       token,
     };
@@ -63,6 +77,17 @@ export class AuthService {
     // Find user
     const user = await prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        subscriptionType: true,
+        dailyUsage: true,
+        totalVideos: true,
+        createdAt: true,
+      },
     });
 
     if (!user) {
@@ -82,11 +107,14 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName || undefined,
-        lastName: user.lastName || undefined,
-        subscriptionType: user.subscriptionType.toString(),
-        dailyUsage: user.dailyUsage,
-        totalVideos: user.totalVideos,
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        createdAt: user.createdAt.toISOString(),
+        subscription: {
+          plan: user.subscriptionType.toLowerCase() === 'premium' ? 'premium' : 'free',
+          status: 'active',
+          dailyLimit: user.subscriptionType === 'FREE' ? 2 : 50,
+          dailyUsage: user.dailyUsage,
+        },
       },
       token,
     };
@@ -114,12 +142,14 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
-      firstName: user.firstName || undefined,
-      lastName: user.lastName || undefined,
-      subscriptionType: user.subscriptionType.toString(),
-      dailyUsage: user.dailyUsage,
-      totalVideos: user.totalVideos,
-      createdAt: user.createdAt,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      createdAt: user.createdAt.toISOString(),
+      subscription: {
+        plan: user.subscriptionType.toLowerCase() === 'premium' ? 'premium' : 'free',
+        status: 'active',
+        dailyLimit: user.subscriptionType === 'FREE' ? 2 : 50,
+        dailyUsage: user.dailyUsage,
+      },
     };
   }
 }
