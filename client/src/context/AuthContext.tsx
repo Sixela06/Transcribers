@@ -64,27 +64,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const deleteAccount = async () => {
-    try {
-      setLoading(true);
-      await authDeleteAccount();
-      setUser(null);
-      localStorage.removeItem('token');
-      toast.success('Account deleted successfully');
-    } catch (error: any) {
-      const message = error?.response?.data?.message || 'Failed to delete account';
-      toast.error(message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
+  
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('token');
     toast.success('Logged out successfully');
   };
+
+  const deleteAccount = async () => {
+  try {
+    setLoading(true);
+    await authDeleteAccount();
+    setUser(null);
+    localStorage.removeItem('token');
+    toast.success('Account deleted successfully');
+  } catch (error: any) {
+    const message = error?.response?.data?.message || error?.message || 'Failed to delete account';
+    toast.error(message);
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+};
 
   const value: AuthContextType = {
     user,

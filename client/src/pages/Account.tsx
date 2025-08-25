@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
+import { useNavigate } from 'react-router-dom';
 import { 
   User, 
   Mail, 
@@ -11,7 +12,9 @@ import {
   Shield, 
   Bell,
   Save,
-  CheckCircle
+  CheckCircle,
+  Trash2,     // ADD this
+  AlertTriangle // ADD this
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
@@ -52,7 +55,7 @@ interface PasswordFormData {
 }
 
 const Account: React.FC = () => {
-  const { user } = useAuth();
+  const { user, deleteAccount } = useAuth(); 
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'billing' | 'notifications'>('profile');
   const [profileLoading, setProfileLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -68,6 +71,30 @@ const Account: React.FC = () => {
   const passwordForm = useForm<PasswordFormData>({
     resolver: yupResolver(passwordSchema),
   });
+
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  
+ const navigate = useNavigate(); // Add this to Account component
+
+const handleDeleteAccount = async () => {
+  if (!showDeleteConfirm) {
+    setShowDeleteConfirm(true);
+    return;
+  }
+
+  setDeleteLoading(true);
+  try {
+    await deleteAccount();
+    navigate('/'); // Handle navigation in the component
+  } catch (error) {
+    console.error('Failed to delete account:', error);
+    setShowDeleteConfirm(false);
+  } finally {
+    setDeleteLoading(false);
+  }
+};
 
   const handleProfileUpdate = async (data: ProfileFormData) => {
     setProfileLoading(true);
@@ -177,7 +204,8 @@ const Account: React.FC = () => {
             )}
 
             {activeTab === 'security' && (
-              <div className="space-y-6">
+              <div className="space-y-8">
+                {/* Change Password Section */}
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-4">
                     Change Password
@@ -211,22 +239,85 @@ const Account: React.FC = () => {
                         disabled={!passwordForm.formState.isValid}
                       >
                         <Save className="h-4 w-4 mr-2" />
-                        Change Password
+                        Update Password
                       </Button>
                     </div>
                   </form>
                 </div>
 
-                <div className="border-t pt-6">
-                  <h4 className="text-md font-medium text-gray-900 mb-3">
-                    Two-Factor Authentication
-                  </h4>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Add an extra layer of security to your account
-                  </p>
-                  <Button variant="secondary">
-                    Enable 2FA
-                  </Button>
+                {/* Danger Zone Section */}
+                <div className="border-t border-gray-200 pt-8">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                    <div className="flex items-start">
+                      <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5 mr-3" />
+                      <div className="flex-1">
+                        <h3 className="text-lg font-medium text-red-900 mb-2">
+                          Danger Zone
+                        </h3>
+                        <p className="text-red-700 mb-4 text-sm">
+                          Once you delete your account, there is no going back. This action will permanently delete:
+                        </p>
+                        <ul className="text-red-700 text-sm mb-6 list-disc list-inside space-y-1">
+                          <li>Your profile and account information</li>
+                          <li>All processed videos and transcripts</li>
+                          <li>All chat conversations and summaries</li>
+                          <li>Your usage statistics and history</li>
+                        </ul>
+
+                        {!showDeleteConfirm ? (
+                          <Button
+                            onClick={handleDeleteAccount}
+                            variant="secondary"
+                            className="bg-red-600 text-white hover:bg-red-700 border-red-600"
+                            disabled={deleteLoading}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Account
+                          </Button>
+                        ) : (
+                          <div className="bg-white border border-red-300 rounded-md p-4">
+                            <p className="text-red-800 font-medium mb-3">
+                              ⚠️ Are you absolutely sure?
+                            </p>
+                            <p className="text-red-700 text-sm mb-4">
+                              Type your email address <strong>({user?.email})</strong> below to confirm account deletion:
+                            </p>
+                            <input
+                              type="email"
+                              placeholder={user?.email}
+                              className="w-full px-3 py-2 border border-red-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4"
+                              onChange={(e) => {
+                                // Only enable delete if email matches
+                                const deleteBtn = document.getElementById('final-delete-btn') as HTMLButtonElement;
+                                if (deleteBtn) {
+                                  deleteBtn.disabled = e.target.value !== user?.email;
+                                }
+                              }}
+                            />
+                            <div className="flex space-x-3">
+                              <Button
+                                id="final-delete-btn"
+                                onClick={handleDeleteAccount}
+                                loading={deleteLoading}
+                                disabled={true}
+                                className="bg-red-600 text-white hover:bg-red-700"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                {deleteLoading ? 'Deleting...' : 'Yes, Delete My Account'}
+                              </Button>
+                              <Button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                variant="secondary"
+                                disabled={deleteLoading}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
