@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
+import { useNavigate } from 'react-router-dom'; // ADD this
 import * as yup from 'yup';
-import { useNavigate } from 'react-router-dom';
 import { 
   User, 
   Mail, 
@@ -13,8 +13,8 @@ import {
   Bell,
   Save,
   CheckCircle,
-  Trash2,     // ADD this
-  AlertTriangle // ADD this
+  Trash2,        // ADD this
+  AlertTriangle  // ADD this
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/ui/Button';
@@ -55,10 +55,17 @@ interface PasswordFormData {
 }
 
 const Account: React.FC = () => {
-  const { user, deleteAccount } = useAuth(); 
+  const { user, deleteAccount } = useAuth();
+  const navigate = useNavigate();
+  
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'billing' | 'notifications'>('profile');
   const [profileLoading, setProfileLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState(''); // ADD this line
+
+  // ... rest of your component
 
   const profileForm = useForm<ProfileFormData>({
     resolver: yupResolver(profileSchema),
@@ -72,12 +79,6 @@ const Account: React.FC = () => {
     resolver: yupResolver(passwordSchema),
   });
 
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
-  
- const navigate = useNavigate(); // Add this to Account component
-
 const handleDeleteAccount = async () => {
   if (!showDeleteConfirm) {
     setShowDeleteConfirm(true);
@@ -86,8 +87,10 @@ const handleDeleteAccount = async () => {
 
   setDeleteLoading(true);
   try {
+    console.log('Attempting to delete account...'); // Debug log
     await deleteAccount();
-    navigate('/'); // Handle navigation in the component
+    console.log('Account deleted successfully'); // Debug log
+    navigate('/');
   } catch (error) {
     console.error('Failed to delete account:', error);
     setShowDeleteConfirm(false);
@@ -285,28 +288,25 @@ const handleDeleteAccount = async () => {
                             <input
                               type="email"
                               placeholder={user?.email}
+                              value={confirmEmail}
+                              onChange={(e) => setConfirmEmail(e.target.value)}
                               className="w-full px-3 py-2 border border-red-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4"
-                              onChange={(e) => {
-                                // Only enable delete if email matches
-                                const deleteBtn = document.getElementById('final-delete-btn') as HTMLButtonElement;
-                                if (deleteBtn) {
-                                  deleteBtn.disabled = e.target.value !== user?.email;
-                                }
-                              }}
                             />
                             <div className="flex space-x-3">
                               <Button
-                                id="final-delete-btn"
                                 onClick={handleDeleteAccount}
                                 loading={deleteLoading}
-                                disabled={true}
+                                disabled={confirmEmail !== user?.email || deleteLoading}
                                 className="bg-red-600 text-white hover:bg-red-700"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 {deleteLoading ? 'Deleting...' : 'Yes, Delete My Account'}
                               </Button>
                               <Button
-                                onClick={() => setShowDeleteConfirm(false)}
+                                onClick={() => {
+                                  setShowDeleteConfirm(false);
+                                  setConfirmEmail('');
+                                }}
                                 variant="secondary"
                                 disabled={deleteLoading}
                               >
