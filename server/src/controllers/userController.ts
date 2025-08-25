@@ -42,4 +42,14 @@ export class UserController {
       res.status(400).json({ error: error.message });
     }
   }
+
+  static async deleteAccount(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    await UserService.deleteAccount(req.userId!);
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error: any) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+}
 }

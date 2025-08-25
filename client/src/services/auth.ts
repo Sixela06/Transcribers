@@ -16,3 +16,7 @@ export const verifyToken = async (): Promise<User> => {
 export const logout = async (): Promise<void> => {
   return apiService.post<void>('/auth/logout');
 };
+
+export const deleteAccount = async (): Promise<void> => {
+  return apiService.delete<void>('/user/delete-account');
+};

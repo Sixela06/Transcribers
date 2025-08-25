@@ -135,5 +135,12 @@ export class UserService {
 
     return { canUse: true };
   }
+
+  static async deleteAccount(userId: string): Promise<void> {
+    // This will automatically delete all related records due to CASCADE
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+  }
   
 }

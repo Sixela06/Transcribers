@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, AuthContextType } from '../types/auth';
-import { login as authLogin, signup as authSignup, verifyToken } from '../services/auth';
 import toast from 'react-hot-toast';
+import { login as authLogin, signup as authSignup, verifyToken, deleteAccount as authDeleteAccount } from '../services/auth';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -64,6 +64,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const deleteAccount = async () => {
+    try {
+      setLoading(true);
+      await authDeleteAccount();
+      setUser(null);
+      localStorage.removeItem('token');
+      toast.success('Account deleted successfully');
+    } catch (error: any) {
+      const message = error?.response?.data?.message || 'Failed to delete account';
+      toast.error(message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('token');
@@ -75,9 +91,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     signup,
     logout,
+    deleteAccount, // ADD this line
     loading,
     isAuthenticated: !!user,
-  };
+};
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
