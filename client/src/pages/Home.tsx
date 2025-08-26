@@ -8,11 +8,12 @@ import SummaryViewer from '../components/video/SummaryViewer';
 import VideoChat from '../components/video/VideoChat';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import Tabs from '../components/ui/Tabs';
+import LoginPrompt from '../components/ui/LoginPrompt';
 import { transcribeVideo, summarizeVideo } from '../services/video';
 import { sendChatMessage } from '../services/chat';
 import { VideoMetadata, VideoTranscript, VideoSummary, ChatMessage } from '../types/video';
 import toast from 'react-hot-toast';
-import TranscriptStyleSelector from '../components/video/TranscriptStyleSelector';
 
 const Home: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -25,24 +26,24 @@ const Home: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
 
-const handleTranscribe = async (url: string) => {
-  setLoading(true);
-  try {
-    const result = await transcribeVideo({ youtubeUrl: url });
-    setVideoData({
-      metadata: result.metadata,
-      transcript: result.transcript,
-    });
-    setChatMessages([]);
-    toast.success('Transcript generated successfully!');
-  } catch (error: any) {
-    console.error('Transcription error:', error);
-    const message = error?.response?.data?.error || error?.response?.data?.message || 'Failed to transcribe video';
-    toast.error(message);
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleTranscribe = async (url: string) => {
+    setLoading(true);
+    try {
+      const result = await transcribeVideo({ youtubeUrl: url });
+      setVideoData({
+        metadata: result.metadata,
+        transcript: result.transcript,
+      });
+      setChatMessages([]);
+      toast.success('Transcript generated successfully!');
+    } catch (error: any) {
+      console.error('Transcription error:', error);
+      const message = error?.response?.data?.error || error?.response?.data?.message || 'Failed to transcribe video';
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSummarize = async (url: string) => {
     if (!isAuthenticated) {
@@ -89,6 +90,74 @@ const handleTranscribe = async (url: string) => {
     }
   };
 
+  // Create tab items based on available data
+  const getTabItems = () => {
+    const tabs = [];
+
+    // Always show transcript tab if we have video data
+    if (videoData && videoData.transcript) {
+      tabs.push({
+        id: 'transcript',
+        label: 'Transcript',
+        icon: <FileText className="h-4 w-4" />,
+        content: (
+          <TranscriptViewer
+            transcript={videoData.transcript}
+            metadata={videoData.metadata}
+          />
+        ),
+      });
+    }
+
+    // Always show summary tab if we have video data (show login prompt if not authenticated)
+    if (videoData && videoData.transcript) {
+      tabs.push({
+        id: 'summary',
+        label: 'AI Summary',
+        icon: <Sparkles className="h-4 w-4" />,
+        content: videoData.summary ? (
+          <SummaryViewer
+            summary={videoData.summary}
+            metadata={videoData.metadata}
+          />
+        ) : isAuthenticated ? (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 text-center">
+            <Sparkles className="h-12 w-12 text-primary-600 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Generate AI Summary</h3>
+            <p className="text-gray-600 mb-4">Click "Summarize Video" to generate an AI-powered summary of this content.</p>
+            <p className="text-sm text-gray-500">Use the summarize button above to get started.</p>
+          </div>
+        ) : (
+          <LoginPrompt feature="summary" />
+        ),
+      });
+    }
+
+    // Always show chat tab if we have video data (show login prompt if not authenticated)
+    if (videoData && videoData.transcript) {
+      tabs.push({
+        id: 'chat',
+        label: 'AI Chat',
+        icon: <MessageCircle className="h-4 w-4" />,
+        content: isAuthenticated ? (
+          <VideoChat
+            videoId={videoData.metadata.id}
+            metadata={videoData.metadata}
+            messages={chatMessages}
+            onSendMessage={handleSendChatMessage}
+            loading={chatLoading}
+          />
+        ) : (
+          <LoginPrompt feature="chat" />
+        ),
+      });
+    }
+
+    return tabs;
+  };
+
+  const tabItems = getTabItems();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-white">
       {/* Hero Section */}
@@ -126,208 +195,75 @@ const handleTranscribe = async (url: string) => {
             loading={loading}
           />
 
-          {/* Results */}
-          {videoData && (
-            <div className="mt-12 space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Transcript */}
-                <TranscriptViewer
-                  transcript={videoData.transcript}
-                  metadata={videoData.metadata}
-                />
-
-                {/* Summary */}
-                {videoData.summary ? (
-                  <SummaryViewer
-                    summary={videoData.summary}
-                    metadata={videoData.metadata}
-                  />
-                ) : (
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 text-center">
-                    <Sparkles className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      Get AI Summary
-                    </h3>
-                    <p className="text-gray-600 mb-4">
-                      {isAuthenticated
-                        ? 'Click "Summarize Video" to get an AI-powered summary'
-                        : 'Sign up to unlock AI-powered summaries and chat features'}
-                    </p>
-                    {!isAuthenticated && (
-                      <Link to="/signup">
-                        <Button>Sign Up Free</Button>
-                      </Link>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Chat */}
-              {videoData.summary && isAuthenticated && (
-                <VideoChat
-                  videoId={videoData.metadata.id}
-                  metadata={videoData.metadata}
-                  messages={chatMessages}
-                  onSendMessage={handleSendChatMessage}
-                  loading={chatLoading}
-                />
-              )}
+          {/* Results Section with Tabs */}
+          {tabItems.length > 0 && (
+            <div className="mt-12">
+              <Tabs 
+                items={tabItems} 
+                defaultTab="transcript"
+                className="w-full"
+              />
             </div>
           )}
-        </div>
-      </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Everything you need to extract video insights
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Our AI-powered platform makes it easy to get the most important information 
-              from any YouTube video in minutes, not hours.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center p-6">
-              <div className="bg-primary-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="h-8 w-8 text-primary-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Instant Transcription
-              </h3>
-              <p className="text-gray-600">
-                Get accurate transcripts from any YouTube video in seconds. 
-                Search, copy, and download with ease.
-              </p>
-            </div>
-
-            <div className="text-center p-6">
-              <div className="bg-primary-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="h-8 w-8 text-primary-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                AI-Powered Summaries
-              </h3>
-              <p className="text-gray-600">
-                Our advanced AI extracts key points and creates concise summaries, 
-                saving you time and highlighting what matters most.
-              </p>
-            </div>
-
-            <div className="text-center p-6">
-              <div className="bg-primary-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageCircle className="h-8 w-8 text-primary-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Interactive Chat
-              </h3>
-              <p className="text-gray-600">
-                Ask questions about the video content and get instant answers. 
-                Perfect for learning and research.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Simple, transparent pricing
-            </h2>
-            <p className="text-xl text-gray-600">
-              Start free, upgrade when you need more
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Free Plan */}
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                <div className="text-4xl font-bold text-gray-900 mb-2">
-                  $0<span className="text-lg text-gray-600">/month</span>
+          {/* Features Section - Show when no video data */}
+          {!videoData && !loading && (
+            <div className="mt-16">
+              {/* Features Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                <div className="text-center p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                  <div className="mx-auto w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mb-4">
+                    <FileText className="h-6 w-6 text-primary-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Instant Transcripts
+                  </h3>
+                  <p className="text-gray-600">
+                    Get accurate, searchable transcripts from any YouTube video in seconds.
+                  </p>
                 </div>
-                <p className="text-gray-600">Perfect for trying out our service</p>
-              </div>
 
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Unlimited transcriptions</span>
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">2 AI summaries per day</span>
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Basic chat functionality</span>
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Export transcripts</span>
-                </li>
-              </ul>
+                <div className="text-center p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                  <div className="mx-auto w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mb-4">
+                    <Sparkles className="h-6 w-6 text-primary-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    AI Summaries
+                  </h3>
+                  <p className="text-gray-600">
+                    Extract key insights and main points with our advanced AI summarization.
+                  </p>
+                </div>
 
-              <Link to="/signup" className="block">
-                <Button variant="secondary" className="w-full">
-                  Get Started Free
-                </Button>
-              </Link>
-            </div>
-
-            {/* Premium Plan */}
-            <div className="bg-white rounded-xl shadow-lg p-8 border-2 border-primary-500 relative">
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <div className="bg-primary-500 text-white px-4 py-1 rounded-full text-sm font-medium">
-                  Most Popular
+                <div className="text-center p-6 bg-white rounded-xl shadow-sm border border-gray-100">
+                  <div className="mx-auto w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mb-4">
+                    <MessageCircle className="h-6 w-6 text-primary-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    Interactive Chat
+                  </h3>
+                  <p className="text-gray-600">
+                    Ask questions about the video content and get instant AI-powered answers.
+                  </p>
                 </div>
               </div>
 
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Premium</h3>
-                <div className="text-4xl font-bold text-gray-900 mb-2">
-                  $9<span className="text-lg text-gray-600">/month</span>
+              {/* Social Proof */}
+              <div className="text-center">
+                <p className="text-gray-500 mb-8">Trusted by content creators and learners worldwide</p>
+                <div className="flex flex-col sm:flex-row items-center justify-center sm:space-x-8 space-y-4 sm:space-y-0 opacity-60">
+                  <div className="flex items-center space-x-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="h-4 w-4 fill-current text-yellow-400" />
+                    ))}
+                    <span className="ml-2 text-sm text-gray-600">4.9/5 rating</span>
+                  </div>
+                  <div className="text-sm text-gray-600">10,000+ videos processed</div>
+                  <div className="text-sm text-gray-600">5,000+ happy users</div>
                 </div>
-                <p className="text-gray-600">For power users and professionals</p>
               </div>
-
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Everything in Free</span>
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Unlimited AI summaries</span>
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Advanced chat features</span>
-                </li>
-                <li className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-3" />
-                  <span className="text-gray-700">Priority support</span>
-                </li>
-                <li className="flex items-center">
-                  <Star className="h-5 w-5 text-yellow-500 mr-3" />
-                  <span className="text-gray-700">Chrome extension access</span>
-                </li>
-              </ul>
-
-              <Link to="/signup" className="block">
-                <Button className="w-full">
-                  Start Premium Trial
-                </Button>
-              </Link>
             </div>
-          </div>
+          )}
         </div>
       </section>
     </div>
