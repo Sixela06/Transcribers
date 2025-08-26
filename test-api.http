@@ -2,5 +2,5 @@ POST http://localhost:5000/api/video/transcribe
 Content-Type: application/json
 
 {
-  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  "url": "https://youtu.be/5BQ-Izg4u5I"
 }

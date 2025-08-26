@@ -58,46 +58,74 @@ export class YouTubeService {
     }
   }
 
-  static async getTranscript(videoId: string): Promise<{ content: string; language?: string }> {
-    try {
-      console.log(`\n=== PYTHON TRANSCRIPT EXTRACTION FOR: ${videoId} ===`);
-      console.log(`🔗 Video URL: https://www.youtube.com/watch?v=${videoId}`);
+  // Update the getTranscript method in server/src/utils/youtube.ts
 
-      // Call Python script using child_process
-      const pythonScript = path.join(__dirname, '../../scripts/get_transcript.py');
-      console.log(`🐍 Calling Python script: ${pythonScript}`);
-
-      const result = await this.callPythonScript(pythonScript, videoId);
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Python script execution failed');
+static async getTranscript(videoId: string): Promise<{
+  content: string;
+  segments?: Array<{ text: string; start: number; duration: number }>;
+  language?: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const pythonScript = path.join(__dirname, '../../scripts/get_transcript.py');
+    
+    const process = spawn('python3', [pythonScript, videoId]);
+    
+    let output = '';
+    let errorOutput = '';
+    
+    process.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    process.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+    
+    process.on('close', (code) => {
+      if (code !== 0) {
+        console.error('Python script error:', errorOutput);
+        reject(new Error('Failed to extract transcript'));
+        return;
       }
-
-      console.log(`✅ Python script success: ${result.transcript.length} characters`);
-      console.log(`📝 Language: ${result.language}`);
-      console.log(`📖 Preview: "${result.transcript.substring(0, 300)}..."`);
-
-      return {
-        content: result.transcript,
-        language: result.language || 'en'
-      };
-
-    } catch (error: any) {
-      console.error('💥 Error in Python transcript extraction:', error);
       
-      const errorMessage = error.message.toLowerCase();
-      
-      if (errorMessage.includes('no transcript') || errorMessage.includes('transcript not available')) {
-        throw new Error('No transcript available for this video');
-      } else if (errorMessage.includes('video not found')) {
-        throw new Error('Video not found or unavailable');
-      } else if (errorMessage.includes('transcripts disabled')) {
-        throw new Error('Transcripts are disabled for this video');
-      } else {
-        throw new Error(`Failed to extract transcript: ${error.message}`);
+      try {
+        const result = JSON.parse(output);
+        
+        if (!result.success) {
+          // Handle specific error types
+          if (result.error_type === 'NO_TRANSCRIPT') {
+            reject(new Error('No transcript available for this video'));
+          } else if (result.error_type === 'VIDEO_NOT_FOUND') {
+            reject(new Error('Video not found or is private'));
+          } else if (result.error_type === 'TRANSCRIPTS_DISABLED') {
+            reject(new Error('Transcripts are disabled for this video'));
+          } else {
+            reject(new Error(result.error || 'Failed to extract transcript'));
+          }
+          return;
+        }
+        
+        // Return the transcript data in the format expected by the service
+        const transcript = result.transcript;
+        resolve({
+          content: transcript.fullText,
+          segments: transcript.segments,
+          language: result.metadata?.language || 'en'
+        });
+        
+      } catch (parseError) {
+        console.error('Failed to parse Python script output:', parseError);
+        console.error('Raw output:', output);
+        reject(new Error('Failed to parse transcript data'));
       }
-    }
-  }
+    });
+    
+    process.on('error', (error) => {
+      console.error('Failed to start Python process:', error);
+      reject(new Error('Failed to start transcript extraction process'));
+    });
+  });
+}
 
   private static callPythonScript(scriptPath: string, videoId: string): Promise<any> {
     return new Promise((resolve, reject) => {

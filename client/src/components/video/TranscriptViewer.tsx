@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Copy, Download, Search, Clock } from 'lucide-react';
 import { VideoTranscript, VideoMetadata } from '../../types/video';
 import { formatDuration } from '../../utils/youtube';
@@ -20,9 +20,41 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [highlightedText, setHighlightedText] = useState('');
 
+  // Create segments from fullText if segments are not available
+  const segments = useMemo(() => {
+    if (transcript?.segments && Array.isArray(transcript.segments)) {
+      return transcript.segments;
+    }
+
+    // Fallback: Create fake segments from fullText for display
+    if (transcript?.fullText) {
+      const sentences = transcript.fullText.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
+      return sentences.map((sentence, index) => ({
+        text: sentence.trim() + '.',
+        start: index * 5, // Fake timing (5 seconds per sentence)
+        duration: 5
+      }));
+    }
+
+    return [];
+  }, [transcript]);
+
+  // Get fullText from transcript or construct from segments
+  const fullText = useMemo(() => {
+    if (transcript?.fullText) {
+      return transcript.fullText;
+    }
+    
+    if (segments && segments.length > 0) {
+      return segments.map(segment => segment.text).join(' ');
+    }
+    
+    return 'No transcript available';
+  }, [transcript, segments]);
+
   const handleCopyTranscript = async () => {
     try {
-      await navigator.clipboard.writeText(transcript.fullText);
+      await navigator.clipboard.writeText(fullText);
       toast.success('Transcript copied to clipboard!');
     } catch (error) {
       toast.error('Failed to copy transcript');
@@ -31,7 +63,7 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({
 
   const handleDownloadTranscript = () => {
     const element = document.createElement('a');
-    const file = new Blob([transcript.fullText], { type: 'text/plain' });
+    const file = new Blob([fullText], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = `${metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_transcript.txt`;
     document.body.appendChild(element);
@@ -62,9 +94,19 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({
     );
   };
 
-  const filteredSegments = transcript.segments.filter(segment =>
+  const filteredSegments = segments.filter(segment =>
     !searchTerm || segment.text.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (!transcript) {
+    return (
+      <div className={`bg-white rounded-xl shadow-lg border border-gray-200 ${className}`}>
+        <div className="p-6 text-center">
+          <p className="text-gray-500">No transcript available</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-white rounded-xl shadow-lg border border-gray-200 ${className}`}>
@@ -76,7 +118,7 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({
               Video Transcript
             </h3>
             <p className="text-sm text-gray-600 truncate max-w-md">
-              {metadata.title}
+              {metadata?.title || 'Untitled Video'}
             </p>
           </div>
           
@@ -134,10 +176,14 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({
                 </div>
               </div>
             ))
-          ) : (
+          ) : searchTerm ? (
             <div className="text-center py-8">
               <Search className="h-8 w-8 text-gray-400 mx-auto mb-2" />
               <p className="text-gray-500">No matching segments found</p>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No transcript segments available</p>
             </div>
           )}
         </div>
@@ -147,25 +193,25 @@ const TranscriptViewer: React.FC<TranscriptViewerProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-2xl font-semibold text-primary-600">
-                {transcript.segments.length}
+                {segments.length}
               </p>
               <p className="text-xs text-gray-500">Segments</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-primary-600">
-                {transcript.fullText.split(' ').length}
+                {fullText.split(' ').length}
               </p>
               <p className="text-xs text-gray-500">Words</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-primary-600">
-                {Math.ceil(transcript.fullText.length / 1000)}k
+                {Math.ceil(fullText.length / 1000)}k
               </p>
               <p className="text-xs text-gray-500">Characters</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-primary-600">
-                {formatDuration(transcript.segments[transcript.segments.length - 1]?.start || 0)}
+                {formatDuration(segments[segments.length - 1]?.start || 0)}
               </p>
               <p className="text-xs text-gray-500">Duration</p>
             </div>
