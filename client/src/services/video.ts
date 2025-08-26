@@ -16,7 +16,7 @@ export const transcribeVideo = async (data: TranscribeRequest): Promise<{
   return apiService.post<{ 
     metadata: VideoMetadata; 
     transcript: VideoTranscript;
-  }>('/video/transcribe', data);
+  }>('/video/transcribe', { url: data.youtubeUrl });
 };
 
 export const summarizeVideo = async (data: SummarizeRequest): Promise<{

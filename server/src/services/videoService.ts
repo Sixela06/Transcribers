@@ -6,81 +6,87 @@ import { VideoData } from '../types/video';
 const prisma = new PrismaClient();
 
 export class VideoService {
-  static async transcribeVideo(userId: string, url: string): Promise<VideoData> {
-    const videoId = YouTubeService.extractVideoId(url);
-    if (!videoId) {
-      throw new Error('Invalid YouTube URL');
-    }
+  // REPLACE the transcribeVideo method signature and implementation:
+static async transcribeVideo(userId: string | null, url: string): Promise<VideoData> {
+  const videoId = YouTubeService.extractVideoId(url);
+  if (!videoId) {
+    throw new Error('Invalid YouTube URL');
+  }
 
-    let video;
-    try {
-      // Check if video already exists
-      video = await prisma.video.findUnique({
-        where: { youtubeId: videoId },
+  let video;
+  try {
+    // Check if video already exists
+    video = await prisma.video.findUnique({
+      where: { youtubeId: videoId },
+      include: {
+        transcript: true,
+        summaries: true,
+      },
+    });
+
+    // If video doesn't exist, create it
+    if (!video) {
+      const metadata = await YouTubeService.getVideoMetadata(videoId);
+      
+      video = await prisma.video.create({
+        data: {
+          youtubeId: videoId,
+          ...(userId && { userId }), // Only include userId if it exists
+          title: metadata.title,
+          description: metadata.description,
+          thumbnailUrl: metadata.thumbnailUrl,
+          duration: metadata.duration,
+          channelName: metadata.channelName,
+          publishedAt: metadata.publishedAt,
+          status: 'PROCESSING',
+        },
         include: {
           transcript: true,
           summaries: true,
         },
       });
-
-      // If video doesn't exist, create it
-      if (!video) {
-        const metadata = await YouTubeService.getVideoMetadata(videoId);
-        
-        video = await prisma.video.create({
-          data: {
-            youtubeId: videoId,
-            userId,
-            ...metadata,
-            status: 'PROCESSING',
-          },
-          include: {
-            transcript: true,
-            summaries: true,
-          },
-        });
-      }
-
-      // If transcript doesn't exist, fetch it
-      if (!video.transcript) {
-        const transcriptData = await YouTubeService.getTranscript(videoId);
-        
-        await prisma.transcript.create({
-          data: {
-            videoId: video.id,
-            content: transcriptData.content,
-            language: transcriptData.language,
-          },
-        });
-
-        // Update video status
-        await prisma.video.update({
-          where: { id: video.id },
-          data: { status: 'COMPLETED' },
-        });
-
-        // Refresh video data
-        video = await prisma.video.findUnique({
-          where: { id: video.id },
-          include: {
-            transcript: true,
-            summaries: true,
-          },
-        })!;
-      }
-
-      return this.formatVideoData(video);
-    } catch (error: any) {
-      // Update video status to failed if it was created
-      if (video) {
-        await prisma.video.update({
-          where: { id: video.id },
-          data: { status: 'FAILED' },
-        });
-      }
-      throw error;
     }
+
+    // If transcript doesn't exist, fetch it
+    if (!video.transcript) {
+      const transcriptData = await YouTubeService.getTranscript(videoId);
+      
+      await prisma.transcript.create({
+        data: {
+          videoId: video.id,
+          content: transcriptData.content,
+          language: transcriptData.language,
+        },
+      });
+
+      // Update video status
+      await prisma.video.update({
+        where: { id: video.id },
+        data: { status: 'COMPLETED' },
+      });
+
+      // Refresh video data
+      video = await prisma.video.findUnique({
+        where: { id: video.id },
+        include: {
+          transcript: true,
+          summaries: true,
+        },
+      })!;
+    }
+
+    return this.formatVideoData(video);
+  } catch (error: any) {
+    // Update video status to failed if it was created
+    if (video) {
+      await prisma.video.update({
+        where: { id: video.id },
+        data: { status: 'FAILED' },
+      });
+    }
+    throw error;
   }
+}
 
   static async summarizeVideo(
     userId: string, 
@@ -210,26 +216,23 @@ export class VideoService {
     });
   }
 
-  private static formatVideoData(video: any): VideoData {
-    return {
-      id: video.id,
-      youtubeId: video.youtubeId,
-      title: video.title,
-      description: video.description,
-      thumbnailUrl: video.thumbnailUrl,
-      duration: video.duration,
-      channelName: video.channelName,
-      publishedAt: video.publishedAt,
-      status: video.status,
-      transcript: video.transcript ? {
-        content: video.transcript.content,
-        language: video.transcript.language,
-      } : undefined,
-      summaries: video.summaries?.map((summary: any) => ({
-        id: summary.id,
-        content: summary.content,
-        type: summary.type,
-      })) || [],
-    };
+  // ADD this method to VideoService class if missing:
+private static formatVideoData(video: any): VideoData {
+  return {
+    id: video.id,
+    youtubeId: video.youtubeId,
+    title: video.title,
+    description: video.description,
+    thumbnailUrl: video.thumbnailUrl,
+    duration: video.duration,
+    channelName: video.channelName,
+    publishedAt: video.publishedAt,
+    status: video.status,
+    transcript: video.transcript ? {
+      content: video.transcript.content,
+      language: video.transcript.language,
+    } : undefined,
+    summaries: video.summaries || [],
+  };
   }
 }

@@ -13,7 +13,8 @@ export class VideoController {
       }
 
       const { url } = req.body;
-      const result = await VideoService.transcribeVideo(req.userId!, url);
+      // Use req.userId (which might be null/undefined for unauthenticated users)
+      const result = await VideoService.transcribeVideo(req.userId || null, url);
       
       res.json(result);
     } catch (error: any) {

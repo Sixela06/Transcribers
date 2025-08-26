@@ -24,23 +24,24 @@ const Home: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
 
-  const handleTranscribe = async (url: string) => {
-    setLoading(true);
-    try {
-      const result = await transcribeVideo({ youtubeUrl: url });
-      setVideoData({
-        metadata: result.metadata,
-        transcript: result.transcript,
-      });
-      setChatMessages([]);
-      toast.success('Transcript generated successfully!');
-    } catch (error: any) {
-      const message = error?.response?.data?.message || 'Failed to transcribe video';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleTranscribe = async (url: string) => {
+  setLoading(true);
+  try {
+    const result = await transcribeVideo({ youtubeUrl: url });
+    setVideoData({
+      metadata: result.metadata,
+      transcript: result.transcript,
+    });
+    setChatMessages([]);
+    toast.success('Transcript generated successfully!');
+  } catch (error: any) {
+    console.error('Transcription error:', error);
+    const message = error?.response?.data?.error || error?.response?.data?.message || 'Failed to transcribe video';
+    toast.error(message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSummarize = async (url: string) => {
     if (!isAuthenticated) {

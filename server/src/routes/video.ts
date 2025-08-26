@@ -1,16 +1,17 @@
+// REPLACE the entire router setup in server/src/routes/video.ts:
 import express from 'express';
 import { VideoController } from '../controllers/videoController';
-import { authenticate } from '../middleware/auth';
+import { authenticate, optionalAuth } from '../middleware/auth';
 import { aiLimiter } from '../middleware/rateLimit';
 import { validateYouTubeUrl } from '../middleware/validation';
 
 const router = express.Router();
 
-// All video routes require authentication
-router.use(authenticate);
+// Transcribe is free for all users (no auth required, but optional for tracking)
+router.post('/transcribe', optionalAuth, validateYouTubeUrl, VideoController.transcribe);
 
-// Transcribe is free for all users (no AI rate limit)
-router.post('/transcribe', validateYouTubeUrl, VideoController.transcribe);
+// All other video routes require authentication
+router.use(authenticate);
 
 // Summarize uses AI and counts against usage (apply AI rate limiting)
 router.post('/summarize', aiLimiter, validateYouTubeUrl, VideoController.summarize);

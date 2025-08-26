@@ -33,28 +33,22 @@ model User {
 }
 
 model Video {
-  id          String   @id @default(cuid())
-  youtubeId   String   @unique
-  title       String?
-  description String?
+  id           String   @id @default(cuid())
+  youtubeId    String   @unique
+  title        String?
+  description  String?
   thumbnailUrl String?
-  duration    String?
-  channelName String?
-  publishedAt DateTime?
-  
-  // Processing status
-  status      VideoStatus @default(PENDING)
-  
-  // Metadata
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relations
-  userId      String
-  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transcript  Transcript?
-  summaries   Summary[]
+  duration     String?
+  channelName  String?
+  publishedAt  DateTime?
+  status       String   @default("PROCESSING")
+  userId       String?  // Make this optional
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transcript   Transcript?
+  summaries    Summary[]
   chatSessions ChatSession[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("videos")
 }

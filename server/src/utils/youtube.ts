@@ -57,34 +57,42 @@ export class YouTubeService {
     }
   }
 
-  static async getTranscript(videoId: string): Promise<{ content: string; language?: string }> {
-    try {
-      const transcriptArray = await YoutubeTranscript.fetchTranscript(videoId);
-      
-      const content = transcriptArray
-        .map(entry => entry.text)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+static async getTranscript(videoId: string): Promise<{ content: string; language?: string }> {
+  try {
+    console.log(`Attempting to fetch transcript for video: ${videoId}`);
+    const transcriptArray = await YoutubeTranscript.fetchTranscript(videoId);
+    
+    if (!transcriptArray || transcriptArray.length === 0) {
+      throw new Error('No transcript data returned');
+    }
+    
+    const content = transcriptArray
+      .map(entry => entry.text)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-      if (!content) {
-        throw new Error('No transcript available for this video');
-      }
+    if (!content) {
+      throw new Error('No transcript content after processing');
+    }
 
-      return {
-        content,
-        language: 'en', // YouTube Transcript API doesn't provide language info
-      };
-    } catch (error: any) {
-      console.error('Error fetching transcript:', error);
-      
-      if (error.message.includes('Transcript is disabled')) {
-        throw new Error('Transcripts are disabled for this video');
-      } else if (error.message.includes('No transcripts were found')) {
-        throw new Error('No transcript available for this video');
-      } else {
-        throw new Error('Failed to fetch transcript');
-      }
+    console.log(`Successfully fetched transcript, length: ${content.length}`);
+    return {
+      content,
+      language: 'en',
+    };
+  } catch (error: any) {
+    console.error('Error fetching transcript:', error);
+    
+    if (error.message.includes('Transcript is disabled')) {
+      throw new Error('Transcripts are disabled for this video');
+    } else if (error.message.includes('No transcripts were found')) {
+      throw new Error('No transcript available for this video');
+    } else if (error.message.includes('Could not retrieve a transcript')) {
+      throw new Error('Unable to retrieve transcript - video may not have captions');
+    } else {
+      throw new Error(`Failed to fetch transcript: ${error.message}`);
     }
   }
+}
 }
