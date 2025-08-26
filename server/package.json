@@ -27,7 +27,8 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "openai": "^4.20.1",
-    "youtube-transcript": "^1.2.1"
+    "youtube-transcript": "^1.2.1",
+    "youtube-transcript-api": "^3.0.6"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

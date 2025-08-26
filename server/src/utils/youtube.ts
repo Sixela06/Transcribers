@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
-import { YoutubeTranscript } from 'youtube-transcript';
+import { spawn } from 'child_process';
 import { config } from './config';
+import path from 'path';
 
 const youtube = google.youtube({
   version: 'v3',
@@ -57,42 +58,99 @@ export class YouTubeService {
     }
   }
 
-static async getTranscript(videoId: string): Promise<{ content: string; language?: string }> {
-  try {
-    console.log(`Attempting to fetch transcript for video: ${videoId}`);
-    const transcriptArray = await YoutubeTranscript.fetchTranscript(videoId);
-    
-    if (!transcriptArray || transcriptArray.length === 0) {
-      throw new Error('No transcript data returned');
-    }
-    
-    const content = transcriptArray
-      .map(entry => entry.text)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+  static async getTranscript(videoId: string): Promise<{ content: string; language?: string }> {
+    try {
+      console.log(`\n=== PYTHON TRANSCRIPT EXTRACTION FOR: ${videoId} ===`);
+      console.log(`🔗 Video URL: https://www.youtube.com/watch?v=${videoId}`);
 
-    if (!content) {
-      throw new Error('No transcript content after processing');
-    }
+      // Call Python script using child_process
+      const pythonScript = path.join(__dirname, '../../scripts/get_transcript.py');
+      console.log(`🐍 Calling Python script: ${pythonScript}`);
 
-    console.log(`Successfully fetched transcript, length: ${content.length}`);
-    return {
-      content,
-      language: 'en',
-    };
-  } catch (error: any) {
-    console.error('Error fetching transcript:', error);
-    
-    if (error.message.includes('Transcript is disabled')) {
-      throw new Error('Transcripts are disabled for this video');
-    } else if (error.message.includes('No transcripts were found')) {
-      throw new Error('No transcript available for this video');
-    } else if (error.message.includes('Could not retrieve a transcript')) {
-      throw new Error('Unable to retrieve transcript - video may not have captions');
-    } else {
-      throw new Error(`Failed to fetch transcript: ${error.message}`);
+      const result = await this.callPythonScript(pythonScript, videoId);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Python script execution failed');
+      }
+
+      console.log(`✅ Python script success: ${result.transcript.length} characters`);
+      console.log(`📝 Language: ${result.language}`);
+      console.log(`📖 Preview: "${result.transcript.substring(0, 300)}..."`);
+
+      return {
+        content: result.transcript,
+        language: result.language || 'en'
+      };
+
+    } catch (error: any) {
+      console.error('💥 Error in Python transcript extraction:', error);
+      
+      const errorMessage = error.message.toLowerCase();
+      
+      if (errorMessage.includes('no transcript') || errorMessage.includes('transcript not available')) {
+        throw new Error('No transcript available for this video');
+      } else if (errorMessage.includes('video not found')) {
+        throw new Error('Video not found or unavailable');
+      } else if (errorMessage.includes('transcripts disabled')) {
+        throw new Error('Transcripts are disabled for this video');
+      } else {
+        throw new Error(`Failed to extract transcript: ${error.message}`);
+      }
     }
   }
-}
+
+  private static callPythonScript(scriptPath: string, videoId: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      console.log(`🚀 Spawning Python process...`);
+      
+      const pythonProcess = spawn('python', [scriptPath, videoId], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      pythonProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      pythonProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      pythonProcess.on('close', (code) => {
+        console.log(`🐍 Python process exited with code: ${code}`);
+        
+        if (code === 0) {
+          try {
+            // Parse JSON output from Python script
+            const result = JSON.parse(stdout.trim());
+            console.log('📊 Python result:', result);
+            resolve(result);
+          } catch (parseError) {
+            console.error('❌ Failed to parse Python output:', stdout);
+            reject(new Error(`Invalid JSON from Python script: ${stdout}`));
+          }
+        } else {
+          console.error('❌ Python script error output:', stderr);
+          reject(new Error(`Python script failed with code ${code}: ${stderr}`));
+        }
+      });
+
+      pythonProcess.on('error', (error) => {
+        console.error('❌ Failed to start Python process:', error);
+        reject(new Error(`Failed to execute Python script: ${error.message}`));
+      });
+
+      // Set timeout for long-running scripts
+      const timeout = setTimeout(() => {
+        pythonProcess.kill();
+        reject(new Error('Python script execution timeout'));
+      }, 30000); // 30 second timeout
+
+      pythonProcess.on('close', () => {
+        clearTimeout(timeout);
+      });
+    });
+  }
 }
