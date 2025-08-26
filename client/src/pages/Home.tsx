@@ -12,6 +12,7 @@ import { transcribeVideo, summarizeVideo } from '../services/video';
 import { sendChatMessage } from '../services/chat';
 import { VideoMetadata, VideoTranscript, VideoSummary, ChatMessage } from '../types/video';
 import toast from 'react-hot-toast';
+import TranscriptStyleSelector from '../components/video/TranscriptStyleSelector';
 
 const Home: React.FC = () => {
   const { isAuthenticated } = useAuth();
