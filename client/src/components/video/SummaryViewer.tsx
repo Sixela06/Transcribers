@@ -16,7 +16,12 @@ const SummaryViewer: React.FC<SummaryViewerProps> = ({
   className = '',
 }) => {
   const handleCopySummary = async () => {
-    const fullSummary = `${summary.summary}\n\nKey Points:\n${summary.keyPoints.map(point => `• ${point}`).join('\n')}`;
+    // Safely handle potentially undefined keyPoints
+    const keyPointsSection = summary.keyPoints && summary.keyPoints.length > 0 
+      ? `\n\nKey Points:\n${summary.keyPoints.map(point => `• ${point}`).join('\n')}`
+      : '';
+    
+    const fullSummary = `${summary.summary}${keyPointsSection}`;
     
     try {
       await navigator.clipboard.writeText(fullSummary);
@@ -27,7 +32,12 @@ const SummaryViewer: React.FC<SummaryViewerProps> = ({
   };
 
   const handleDownloadSummary = () => {
-    const fullSummary = `Video Summary: ${metadata.title}\n\n${summary.summary}\n\nKey Points:\n${summary.keyPoints.map(point => `• ${point}`).join('\n')}\n\nGenerated on: ${new Date(summary.createdAt).toLocaleDateString()}`;
+    // Safely handle potentially undefined keyPoints
+    const keyPointsSection = summary.keyPoints && summary.keyPoints.length > 0
+      ? `\n\nKey Points:\n${summary.keyPoints.map(point => `• ${point}`).join('\n')}`
+      : '';
+    
+    const fullSummary = `Video Summary: ${metadata.title}\n\n${summary.summary}${keyPointsSection}\n\nGenerated on: ${new Date(summary.createdAt).toLocaleDateString()}`;
     
     const element = document.createElement('a');
     const file = new Blob([fullSummary], { type: 'text/plain' });

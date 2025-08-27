@@ -1,5 +1,5 @@
-    import { apiService } from './api';
-import { ChatRequest, ChatMessage, ChatSession } from '../types/video';
+import { apiService } from './api';
+import { ChatMessage, ChatSession } from '../types/video';
 
 export const sendChatMessage = async (
   videoId: string, 

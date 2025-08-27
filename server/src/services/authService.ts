@@ -2,12 +2,13 @@ import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { generateToken } from '../utils/jwt';
 import { RegisterRequest, LoginRequest, AuthResponse } from '../types/auth';
+import { UsageLimits, SubscriptionType } from '../utils/usageLimits';
 
 const prisma = new PrismaClient();
 
 export class AuthService {
   static async register(data: RegisterRequest): Promise<AuthResponse> {
-    const { email, password, name, firstName, lastName } = data;
+    const { email, password, firstName, lastName } = data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -19,25 +20,17 @@ export class AuthService {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Handle name field - if 'name' is provided, split it into first and last name
-    let userFirstName = firstName;
-    let userLastName = lastName;
-    
-    if (name && !firstName && !lastName) {
-      const nameParts = name.trim().split(' ');
-      userFirstName = nameParts[0];
-      userLastName = nameParts.slice(1).join(' ') || undefined;
-    }
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Create user
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
-        firstName: userFirstName,
-        lastName: userLastName,
+        firstName: firstName || '',
+        lastName: lastName || '',
+        subscriptionType: 'FREE',
       },
       select: {
         id: true,
@@ -54,6 +47,9 @@ export class AuthService {
     // Generate token
     const token = generateToken(user.id);
 
+    // Use configurable limits
+    const dailyLimit = UsageLimits.getDailyLimit(user.subscriptionType as SubscriptionType);
+
     return {
       user: {
         id: user.id,
@@ -63,7 +59,7 @@ export class AuthService {
         subscription: {
           plan: user.subscriptionType.toLowerCase() === 'premium' ? 'premium' : 'free',
           status: 'active',
-          dailyLimit: user.subscriptionType === 'FREE' ? 2 : 50,
+          dailyLimit: dailyLimit,
           dailyUsage: user.dailyUsage,
         },
       },
@@ -103,6 +99,9 @@ export class AuthService {
     // Generate token
     const token = generateToken(user.id);
 
+    // Use configurable limits
+    const dailyLimit = UsageLimits.getDailyLimit(user.subscriptionType as SubscriptionType);
+
     return {
       user: {
         id: user.id,
@@ -112,7 +111,7 @@ export class AuthService {
         subscription: {
           plan: user.subscriptionType.toLowerCase() === 'premium' ? 'premium' : 'free',
           status: 'active',
-          dailyLimit: user.subscriptionType === 'FREE' ? 2 : 50,
+          dailyLimit: dailyLimit,
           dailyUsage: user.dailyUsage,
         },
       },
@@ -139,6 +138,9 @@ export class AuthService {
       throw new Error('User not found');
     }
 
+    // Use configurable limits
+    const dailyLimit = UsageLimits.getDailyLimit(user.subscriptionType as SubscriptionType);
+
     return {
       id: user.id,
       email: user.email,
@@ -147,7 +149,7 @@ export class AuthService {
       subscription: {
         plan: user.subscriptionType.toLowerCase() === 'premium' ? 'premium' : 'free',
         status: 'active',
-        dailyLimit: user.subscriptionType === 'FREE' ? 2 : 50,
+        dailyLimit: dailyLimit,
         dailyUsage: user.dailyUsage,
       },
     };

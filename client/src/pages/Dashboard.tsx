@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -86,12 +86,30 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+  const formatDate = (dateString: string | Date) => {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
     });
+  };
+
+  const formatDurationFromString = (durationStr?: string) => {
+    if (!durationStr) return '0:00';
+    
+    // If it's already formatted (e.g., "5:30"), return as is
+    if (durationStr.includes(':')) {
+      return durationStr;
+    }
+    
+    // If it's a number as string, convert to minutes:seconds
+    const totalSeconds = parseInt(durationStr);
+    if (isNaN(totalSeconds)) return '0:00';
+    
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   if (videosLoading || statsLoading) {
@@ -145,17 +163,17 @@ const Dashboard: React.FC = () => {
                   <div
                     className="bg-primary-600 h-2 rounded-full"
                     style={{
-                      width: `${Math.min((usageStats.dailyUsage / usageStats.dailyLimit) * 100, 100)}%`,
+                      width: `${Math.min((usageStats.dailyUsage / usageStats.dailyLimit) * 100, 100)}%`
                     }}
-                  />
+                  ></div>
                 </div>
               </div>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <FileText className="h-6 w-6 text-green-600" />
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <FileText className="h-6 w-6 text-blue-600" />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Videos</p>
@@ -168,11 +186,11 @@ const Dashboard: React.FC = () => {
 
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <TrendingUp className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Plan</p>
+                  <p className="text-sm font-medium text-gray-600">Current Plan</p>
                   <p className="text-2xl font-bold text-gray-900 capitalize">
                     {usageStats.subscriptionPlan}
                   </p>
@@ -182,13 +200,13 @@ const Dashboard: React.FC = () => {
 
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Calendar className="h-6 w-6 text-purple-600" />
+                <div className="p-2 bg-yellow-100 rounded-lg">
+                  <Clock className="h-6 w-6 text-yellow-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">This Month</p>
+                  <p className="text-sm font-medium text-gray-600">Remaining</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {videosData?.data.length || 0}
+                    {usageStats.dailyLimit - usageStats.dailyUsage}
                   </p>
                 </div>
               </div>
@@ -196,13 +214,61 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
+        {/* Quick Actions */}
+        <div className="mb-8">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Link
+              to="/"
+              className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow border border-gray-200"
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-primary-100 rounded-lg">
+                  <Plus className="h-6 w-6 text-primary-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-gray-900">Process New Video</h3>
+                  <p className="text-sm text-gray-600">Transcribe or summarize a YouTube video</p>
+                </div>
+              </div>
+            </Link>
+
+            <Link
+              to="/account"
+              className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow border border-gray-200"
+            >
+              <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <TrendingUp className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-gray-900">Upgrade Plan</h3>
+                  <p className="text-sm text-gray-600">Get unlimited summaries and more features</p>
+                </div>
+              </div>
+            </Link>
+
+            <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <MessageCircle className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-lg font-medium text-gray-900">Need Help?</h3>
+                  <p className="text-sm text-gray-600">Check our FAQ or contact support</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Recent Videos */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Videos</h2>
+            <h2 className="text-lg font-medium text-gray-900">Recent Videos</h2>
           </div>
-
-          {videosData?.data && videosData.data.length > 0 ? (
+          
+          {videosData && videosData.data.length > 0 ? (
             <div className="overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -229,25 +295,25 @@ const Dashboard: React.FC = () => {
                           <div className="flex items-center">
                             <img
                               className="h-12 w-16 rounded object-cover flex-shrink-0"
-                              src={video.metadata.thumbnail}
-                              alt={video.metadata.title}
+                              src={video.thumbnailUrl || '/placeholder-video.jpg'}
+                              alt={video.title || 'Video thumbnail'}
                             />
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900 line-clamp-2">
-                                {video.metadata.title}
+                                {video.title || 'Untitled Video'}
                               </div>
                               <div className="text-sm text-gray-500">
-                                {video.metadata.channelTitle} • {formatViewCount(video.metadata.viewCount)} views
+                                {video.channelName || 'Unknown Channel'}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">
-                            {formatDate(video.processedAt)}
+                            {video.publishedAt ? formatDate(video.publishedAt) : 'Unknown date'}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {formatDuration(parseInt(video.metadata.duration))}
+                            {formatDurationFromString(video.duration)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -256,34 +322,34 @@ const Dashboard: React.FC = () => {
                               <FileText className="h-3 w-3 mr-1" />
                               Transcript
                             </span>
-                            {video.summary && (
+                            {video.summaries && video.summaries.length > 0 && (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 <MessageCircle className="h-3 w-3 mr-1" />
                                 Summary
-                              </span>
-                            )}
-                            {video.chatSession && (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                <MessageCircle className="h-3 w-3 mr-1" />
-                                Chat
                               </span>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end space-x-2">
+                            <Link
+                              to={`/?video=${video.youtubeId}`}
+                              className="text-primary-600 hover:text-primary-900"
+                            >
+                              View
+                            </Link>
                             <a
                               href={createYouTubeUrl(video.youtubeId)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-gray-400 hover:text-gray-600"
+                              className="text-gray-600 hover:text-gray-900"
                             >
                               <ExternalLink className="h-4 w-4" />
                             </a>
                             <button
                               onClick={() => handleDeleteVideo(video.id)}
                               disabled={deletingVideoId === video.id}
-                              className="text-red-400 hover:text-red-600 disabled:opacity-50"
+                              className="text-red-600 hover:text-red-900 disabled:opacity-50"
                             >
                               {deletingVideoId === video.id ? (
                                 <LoadingSpinner size="sm" />
@@ -301,79 +367,34 @@ const Dashboard: React.FC = () => {
             </div>
           ) : (
             <div className="text-center py-12">
-              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No videos processed yet
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Start by processing your first YouTube video to see it here
+              <FileText className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No videos yet</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Get started by processing your first YouTube video.
               </p>
-              <Button onClick={() => setIsVideoInputOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Process Your First Video
-              </Button>
+              <div className="mt-6">
+                <Button onClick={() => setIsVideoInputOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Process Video
+                </Button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Quick Actions */}
-        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Link
-            to="/"
-            className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow border border-gray-200"
-          >
-            <div className="flex items-center">
-              <div className="p-2 bg-primary-100 rounded-lg">
-                <Plus className="h-6 w-6 text-primary-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Process New Video</h3>
-                <p className="text-sm text-gray-600">Transcribe or summarize a YouTube video</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            to="/account"
-            className="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow border border-gray-200"
-          >
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Upgrade Plan</h3>
-                <p className="text-sm text-gray-600">Get unlimited summaries and more features</p>
-              </div>
-            </div>
-          </Link>
-
-          <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <MessageCircle className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-medium text-gray-900">Need Help?</h3>
-                <p className="text-sm text-gray-600">Check our FAQ or contact support</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Video Input Modal */}
+        <Modal
+          isOpen={isVideoInputOpen}
+          onClose={() => setIsVideoInputOpen(false)}
+          title="Process New Video"
+          maxWidth="2xl"
+        >
+          <VideoInput
+            onTranscribe={handleTranscribe}
+            onSummarize={handleSummarize}
+          />
+        </Modal>
       </div>
-
-      {/* Video Input Modal */}
-      <Modal
-        isOpen={isVideoInputOpen}
-        onClose={() => setIsVideoInputOpen(false)}
-        title="Process New Video"
-        maxWidth="2xl"
-      >
-        <VideoInput
-          onTranscribe={handleTranscribe}
-          onSummarize={handleSummarize}
-        />
-      </Modal>
     </div>
   );
 };

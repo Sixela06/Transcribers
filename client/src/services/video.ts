@@ -13,6 +13,7 @@ export const transcribeVideo = async (data: TranscribeRequest): Promise<{
   metadata: VideoMetadata; 
   transcript: VideoTranscript;
 }> => {
+  // Fix: Change youtubeUrl to url to match backend validation schema
   return apiService.post<{ 
     metadata: VideoMetadata; 
     transcript: VideoTranscript;
@@ -24,11 +25,17 @@ export const summarizeVideo = async (data: SummarizeRequest): Promise<{
   transcript: VideoTranscript;
   summary: VideoSummary;
 }> => {
+  // Fix: Change data structure to match backend expectations
+  const requestData = {
+    url: data.youtubeUrl,
+    summaryType: data.summaryType || 'STANDARD'
+  };
+  
   return apiService.post<{
     metadata: VideoMetadata;
     transcript: VideoTranscript;
     summary: VideoSummary;
-  }>('/video/summarize', data);
+  }>('/video/summarize', requestData);
 };
 
 export const getProcessedVideos = async (

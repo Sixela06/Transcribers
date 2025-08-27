@@ -27,6 +27,13 @@ export const config = {
   // Rate Limiting
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
   rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
+
+  // Usage Limits (configurable for testing)
+  usageLimits: {
+    free: parseInt(process.env.FREE_DAILY_LIMIT || '2'),
+    basic: parseInt(process.env.BASIC_DAILY_LIMIT || '20'),
+    premium: parseInt(process.env.PREMIUM_DAILY_LIMIT || '100'),
+  }
 };
 
 // Validate required environment variables

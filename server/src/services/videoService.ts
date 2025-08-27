@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { YouTubeService } from '../utils/youtube';
 import { AIService } from './aiService';
 import { VideoData } from '../types/video';
+import { UsageLimits, SubscriptionType } from '../utils/usageLimits';
 
 const prisma = new PrismaClient();
 
@@ -280,9 +281,6 @@ export class VideoService {
     }
   }
 
-  /**
-   * Summarize a YouTube video using AI
-   */
   static async summarizeVideo(
     userId: string, 
     url: string, 
@@ -298,14 +296,20 @@ export class VideoService {
         throw new Error('User not found');
       }
 
-      // Check usage limits based on subscription
-      const dailyLimit = user.subscriptionType === 'FREE' ? 2 : 
-                        user.subscriptionType === 'BASIC' ? 20 : 100;
+      // Use configurable usage limits
+      const dailyLimit = UsageLimits.getDailyLimit(user.subscriptionType as SubscriptionType);
 
       if (user.dailyUsage >= dailyLimit) {
-        throw new Error('Daily usage limit exceeded. Please upgrade your plan.');
+        throw new Error(`Daily usage limit exceeded (${dailyLimit} summaries). Please upgrade your plan.`);
       }
 
+      // Log for debugging (remove in production)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Usage check: ${user.dailyUsage}/${dailyLimit} (${user.subscriptionType})`);
+      }
+
+      // ... rest of the method remains the same ...
+      
       // First get the transcript (pass userId since this is authenticated)
       const transcriptResult = await this.transcribeVideo(userId, url);
       
