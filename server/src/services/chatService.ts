@@ -6,8 +6,9 @@ const prisma = new PrismaClient();
 export interface ChatMessage {
   id: string;
   content: string;
-  role: 'USER' | 'ASSISTANT';
+  role: 'user' | 'assistant'; // Changed to match frontend expectations
   createdAt: Date;
+  timestamp?: string; // Added for frontend
 }
 
 export interface ChatSession {
@@ -21,13 +22,13 @@ export interface ChatSession {
 export class ChatService {
   static async sendMessage(
     userId: string,
-    videoId: string,
+    videoId: string, // This is actually the youtubeId from the URL
     message: string
-  ): Promise<{ session: ChatSession; newMessage: ChatMessage; aiResponse: ChatMessage }> {
-    // Verify user has access to the video
+  ): Promise<ChatMessage> {
+    // FIXED: Look up video by youtubeId instead of database id
     const video = await prisma.video.findFirst({
       where: {
-        id: videoId,
+        youtubeId: videoId, // Changed from id to youtubeId
         userId,
       },
       include: {
@@ -43,11 +44,11 @@ export class ChatService {
       throw new Error('Video transcript not available for chat');
     }
 
-    // Find or create chat session
+    // Find or create chat session using the database video.id
     let session = await prisma.chatSession.findFirst({
       where: {
         userId,
-        videoId,
+        videoId: video.id, // Use the database ID for session
       },
       include: {
         messages: {
@@ -65,7 +66,7 @@ export class ChatService {
       session = await prisma.chatSession.create({
         data: {
           userId,
-          videoId,
+          videoId: video.id, // Use database ID
           title,
         },
         include: {
@@ -89,9 +90,26 @@ export class ChatService {
       content: msg.content,
     }));
 
+    // Extract clean transcript content
+    let transcriptContent = video.transcript.content;
+    
+    // Handle embedded segments format
+    const lines = transcriptContent.split('\n');
+    if (lines[0].startsWith('[{') && lines[0].includes('"start":')) {
+      transcriptContent = lines.slice(1).join('\n').trim();
+      if (!transcriptContent) {
+        try {
+          const segments = JSON.parse(lines[0]);
+          transcriptContent = segments.map((s: any) => s.text).join(' ');
+        } catch (e) {
+          transcriptContent = video.transcript.content;
+        }
+      }
+    }
+
     // Generate AI response
     const aiResponseContent = await AIService.chatWithTranscript(
-      video.transcript.content,
+      transcriptContent,
       message,
       chatHistory
     );
@@ -105,31 +123,30 @@ export class ChatService {
       },
     });
 
-    // Get updated session
-    const updatedSession = await prisma.chatSession.findUnique({
-      where: { id: session.id },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-        },
-      },
-    });
-
-    return {
-      session: this.formatChatSession(updatedSession!),
-      newMessage: this.formatChatMessage(userMessage),
-      aiResponse: this.formatChatMessage(aiMessage),
-    };
+    // Return just the AI response in the format expected by frontend
+    return this.formatChatMessage(aiMessage);
   }
 
   static async getChatHistory(
     userId: string,
-    videoId: string
+    videoId: string // This is youtubeId
   ): Promise<ChatSession | null> {
+    // FIXED: Look up video by youtubeId
+    const video = await prisma.video.findFirst({
+      where: {
+        youtubeId: videoId,
+        userId,
+      },
+    });
+
+    if (!video) {
+      return null;
+    }
+
     const session = await prisma.chatSession.findFirst({
       where: {
         userId,
-        videoId,
+        videoId: video.id, // Use database ID
       },
       include: {
         messages: {
@@ -199,8 +216,9 @@ export class ChatService {
     return {
       id: message.id,
       content: message.content,
-      role: message.role,
+      role: message.role.toLowerCase() as 'user' | 'assistant', // Now matches interface
       createdAt: message.createdAt,
+      timestamp: message.createdAt.toISOString(), // Add timestamp for frontend
     };
   }
 }

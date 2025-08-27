@@ -18,12 +18,6 @@ interface VideoData {
   summary?: VideoSummary;
 }
 
-interface VideoData {
-  metadata: VideoMetadata;
-  transcript: VideoTranscript;
-  summary?: VideoSummary;
-}
-
 const Home: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -35,10 +29,16 @@ const Home: React.FC = () => {
     setLoading(true);
     try {
       const response = await transcribeVideo({ youtubeUrl: url });
+      
+      // Set new video data
       setVideoData({
         metadata: response.metadata,
         transcript: response.transcript
       });
+      
+      // RESET CHAT: Clear chat messages for new video
+      setChatMessages([]);
+      
       toast.success('Video transcribed successfully!');
     } catch (error: any) {
       const message = error?.response?.data?.error || error?.message || 'Failed to transcribe video';
@@ -62,11 +62,16 @@ const Home: React.FC = () => {
         summaryType: 'STANDARD'
       });
       
+      // Set new video data
       setVideoData({
         metadata: response.metadata,
         transcript: response.transcript,
         summary: response.summary
       });
+      
+      // RESET CHAT: Clear chat messages for new video
+      setChatMessages([]);
+      
       toast.success('Video summarized successfully!');
     } catch (error: any) {
       console.error('Summarization error:', error);
