@@ -20,8 +20,8 @@ model User {
   subscriptionType SubscriptionType @default(FREE)
   subscriptionEnd  DateTime?
   
-  // Usage tracking
-  dailyUsage       Int      @default(0)
+  // Usage tracking - optimized for GPT-4o Mini's improved efficiency
+  dailyUsage       Int      @default(0) // Can potentially handle more with lower costs
   lastUsageReset   DateTime @default(now())
   totalVideos      Int      @default(0)
 
@@ -45,8 +45,8 @@ model Video {
   userId       String?  // Make this optional
   user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   transcript   Transcript?
-  summaries    Summary[]
-  chatSessions ChatSession[]
+  summaries    Summary[] // GPT-4o Mini can generate higher quality summaries
+  chatSessions ChatSession[] // Better chat context with 8x larger window
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -55,7 +55,7 @@ model Video {
 
 model Transcript {
   id        String   @id @default(cuid())
-  content   String
+  content   String   // Can handle much longer transcripts with GPT-4o Mini's 128K context
   language  String?
   createdAt DateTime @default(now())
   
@@ -68,7 +68,7 @@ model Transcript {
 
 model Summary {
   id        String      @id @default(cuid())
-  content   String
+  content   String      // GPT-4o Mini generates more detailed and accurate summaries
   type      SummaryType @default(STANDARD)
   createdAt DateTime    @default(now())
   
@@ -90,14 +90,14 @@ model ChatSession {
   user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
   videoId   String
   video     Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  messages  ChatMessage[]
+  messages  ChatMessage[] // GPT-4o Mini supports longer chat history context
 
   @@map("chat_sessions")
 }
 
 model ChatMessage {
   id        String      @id @default(cuid())
-  content   String
+  content   String      // GPT-4o Mini can generate longer, more detailed responses
   role      MessageRole
   createdAt DateTime    @default(now())
   

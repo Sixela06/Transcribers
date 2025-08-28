@@ -5,15 +5,25 @@ const openai = new OpenAI({
   apiKey: config.openaiApiKey,
 });
 
+// Define supported model types
+type ModelName = 'gpt-4o-mini' | 'gpt-3.5-turbo' | 'gpt-4' | 'gpt-4-turbo';
+
 export class AIService {
-  // Token limits for different models
-  private static readonly TOKEN_LIMITS = {
-    'gpt-3.5-turbo': 16385,
+  // Updated token limits for GPT-4o Mini with proper typing
+  private static readonly TOKEN_LIMITS: Record<ModelName, number> = {
+    'gpt-4o-mini': 128000,  // 8x larger than GPT-3.5 Turbo
+    'gpt-3.5-turbo': 16385, // Keep for reference/fallback
     'gpt-4': 32768,
     'gpt-4-turbo': 128000
   };
 
-  // Better token estimation - OpenAI's actual ratio is closer to 1 token = 3 characters
+  // Primary models to use with proper typing
+  private static readonly MODELS = {
+    SUMMARIZATION: 'gpt-4o-mini' as ModelName,
+    CHAT: 'gpt-4o-mini' as ModelName
+  };
+
+  // Improved token estimation for GPT-4o Mini (same tokenizer as GPT-4o)
   private static estimateTokens(text: string): number {
     return Math.ceil(text.length / 3); // More accurate estimation
   }
@@ -25,13 +35,13 @@ export class AIService {
       return { text: transcript, truncated: false };
     }
 
-    // Strategy: Take first 40%, last 20%, and sample 40% from middle
+    // Strategy: Take first 50%, last 25%, and sample 25% from middle
     const words = transcript.split(' ');
     const totalWords = words.length;
     
-    const firstPortion = Math.floor(totalWords * 0.4);
-    const lastPortion = Math.floor(totalWords * 0.2);
-    const middlePortion = Math.floor(totalWords * 0.4);
+    const firstPortion = Math.floor(totalWords * 0.5);
+    const lastPortion = Math.floor(totalWords * 0.25);
+    const middlePortion = Math.floor(totalWords * 0.25);
     
     const firstWords = words.slice(0, firstPortion);
     const lastWords = words.slice(-lastPortion);
@@ -60,9 +70,10 @@ export class AIService {
     transcript: string,
     summaryType: 'STANDARD' | 'DETAILED' | 'BULLET_POINTS' = 'STANDARD'
   ): Promise<string> {
-    console.log('📝 Using chunking strategy for very long transcript...');
+    console.log('📝 Using chunking strategy for extremely long transcript...');
     
-    const maxChunkTokens = 10000; // Even more conservative for chunks
+    // Much larger chunks possible with GPT-4o Mini
+    const maxChunkTokens = 50000; // Can handle much larger chunks now
     const maxChunkChars = maxChunkTokens * 4; // Rough conversion
     
     // Split into chunks
@@ -113,7 +124,7 @@ export class AIService {
     const prompt = `Summarize this section (part ${chunkIndex} of ${totalChunks}) of a video transcript. Focus on key points and main ideas:\n\n${chunk}`;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: this.MODELS.SUMMARIZATION,
       messages: [
         {
           role: 'system',
@@ -124,7 +135,7 @@ export class AIService {
           content: prompt
         }
       ],
-      max_tokens: 400,
+      max_tokens: 800, // Can afford more tokens now
       temperature: 0.3,
     });
 
@@ -150,7 +161,7 @@ export class AIService {
     }
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: this.MODELS.SUMMARIZATION,
       messages: [
         {
           role: 'system',
@@ -161,7 +172,7 @@ export class AIService {
           content: prompt
         }
       ],
-      max_tokens: summaryType === 'DETAILED' ? 1500 : 800,
+      max_tokens: summaryType === 'DETAILED' ? 2000 : 1200, // Increased limits
       temperature: 0.3,
     });
 
@@ -179,32 +190,32 @@ export class AIService {
   ): Promise<string> {
     try {
       const estimatedTokens = this.estimateTokens(transcript);
-      // Conservative limit: 85% of max tokens (15% buffer)
-      const maxTokens = Math.floor(this.TOKEN_LIMITS['gpt-3.5-turbo'] * 0.85) - 1000; // ~12,900 tokens
+      // More generous limit with GPT-4o Mini: 90% of max tokens (10% buffer)
+      const maxTokens = Math.floor(this.TOKEN_LIMITS[this.MODELS.SUMMARIZATION] * 0.9) - 2000; // ~113,200 tokens
       
-      console.log(`📊 Transcript analysis: ~${estimatedTokens} tokens (conservative limit: ${maxTokens})`);
+      console.log(`📊 Transcript analysis: ~${estimatedTokens} tokens (limit: ${maxTokens}) using ${this.MODELS.SUMMARIZATION}`);
 
-      // Strategy 1: Try direct summarization if comfortably within limits
+      // Strategy 1: Try direct summarization - much more likely to work now
       if (estimatedTokens <= maxTokens) {
         console.log('✅ Transcript size OK, using direct summarization');
         return this.directSummarize(transcript, summaryType);
       }
       
-      // Strategy 2: Try intelligent truncation for moderately long transcripts
-      else if (estimatedTokens <= maxTokens * 1.5) {
-        console.log('⚠️ Transcript too long, using intelligent truncation');
+      // Strategy 2: Try intelligent truncation for very long transcripts
+      else if (estimatedTokens <= maxTokens * 2) {
+        console.log('⚠️ Transcript quite long, using intelligent truncation');
         const { text: truncatedText, truncated } = this.truncateTranscript(transcript, maxTokens);
         const summary = await this.directSummarize(truncatedText, summaryType);
         
         if (truncated) {
-          return summary + '\n\n[Note: Summary based on key sections of a long video]';
+          return summary + '\n\n[Note: Summary based on key sections of a very long video]';
         }
         return summary;
       }
       
-      // Strategy 3: Use chunking for very long transcripts
+      // Strategy 3: Use chunking for extremely long transcripts (rare now)
       else {
-        console.log('🔄 Transcript very long, using chunking strategy');
+        console.log('🔄 Transcript extremely long, using chunking strategy');
         return this.chunkAndSummarize(transcript, summaryType);
       }
 
@@ -212,9 +223,9 @@ export class AIService {
       console.error('OpenAI Error:', error.code, error.message);
       
       if (error.code === 'context_length_exceeded') {
-        console.log('⚠️  Context length exceeded, trying emergency truncation');
+        console.log('⚠️ Context length exceeded, trying emergency truncation');
         try {
-          const { text } = this.truncateTranscript(transcript, 6000); // Very aggressive truncation
+          const { text } = this.truncateTranscript(transcript, 50000); // More generous emergency limit
           const summary = await this.directSummarize(text, summaryType);
           return summary + '\n\n[Note: Summary based on abbreviated version due to length constraints]';
         } catch (secondError) {
@@ -245,7 +256,7 @@ export class AIService {
     }
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: this.MODELS.SUMMARIZATION,
       messages: [
         {
           role: 'system',
@@ -256,7 +267,7 @@ export class AIService {
           content: prompt
         }
       ],
-      max_tokens: summaryType === 'DETAILED' ? 1500 : 800,
+      max_tokens: summaryType === 'DETAILED' ? 2000 : 1200, // Increased limits
       temperature: 0.3,
     });
 
@@ -274,11 +285,11 @@ export class AIService {
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
   ): Promise<string> {
     try {
-      // For chat, be VERY conservative - 50% of limit (50% buffer for chat history + system prompt)
-      const maxTranscriptTokens = Math.floor(this.TOKEN_LIMITS['gpt-3.5-turbo'] * 0.5) - 2000; // ~6,200 tokens for transcript
+      // Much more generous with GPT-4o Mini - 70% of limit (30% buffer for chat history + system prompt)
+      const maxTranscriptTokens = Math.floor(this.TOKEN_LIMITS[this.MODELS.CHAT] * 0.7) - 3000; // ~86,600 tokens for transcript
       
       const estimatedTokens = this.estimateTokens(transcript);
-      console.log(`💬 Chat token analysis: transcript ~${estimatedTokens} tokens (limit: ${maxTranscriptTokens})`);
+      console.log(`💬 Chat token analysis: transcript ~${estimatedTokens} tokens (limit: ${maxTranscriptTokens}) using ${this.MODELS.CHAT}`);
       
       const { text: processedTranscript, truncated } = this.truncateTranscript(transcript, maxTranscriptTokens);
 
@@ -288,8 +299,8 @@ ${processedTranscript}
 
 Answer based on this content. Be helpful and reference specific parts when relevant.${truncated ? ' Note: Transcript shortened for processing.' : ''}`;
 
-      // Limit chat history to last 3 messages to save tokens
-      const limitedHistory = chatHistory.slice(-3);
+      // Can afford more chat history with larger context window
+      const limitedHistory = chatHistory.slice(-8); // Increased from 3 to 8 messages
 
       const messages = [
         { role: 'system' as const, content: systemPrompt },
@@ -298,9 +309,9 @@ Answer based on this content. Be helpful and reference specific parts when relev
       ];
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: this.MODELS.CHAT,
         messages,
-        max_tokens: 600, // Reduced response length
+        max_tokens: 1000, // Increased response length
         temperature: 0.7,
       });
 
@@ -314,34 +325,36 @@ Answer based on this content. Be helpful and reference specific parts when relev
       console.error('OpenAI Chat Error:', error.code, error.message);
       
       if (error.code === 'context_length_exceeded') {
-        console.log('⚠️  Chat context length exceeded, trying ULTRA emergency truncation');
+        console.log('⚠️ Chat context length exceeded, trying emergency truncation');
         try {
-          // ULTRA-aggressive truncation - only 2000 tokens for transcript
-          const { text } = this.truncateTranscript(transcript, 2000);
+          // Less aggressive emergency truncation with GPT-4o Mini
+          const { text } = this.truncateTranscript(transcript, 20000); // Increased from 2000 to 20000
           
           const systemPrompt = `Answer questions about this video excerpt:
 
 ${text}
 
-Note: This is a small excerpt from a longer video.`;
+Note: This is an excerpt from a longer video.`;
 
-          // No chat history in emergency mode
+          // Minimal chat history in emergency mode
+          const recentHistory = chatHistory.slice(-2);
           const messages = [
             { role: 'system' as const, content: systemPrompt },
+            ...recentHistory,
             { role: 'user' as const, content: userMessage }
           ];
 
           const response = await openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
+            model: this.MODELS.CHAT,
             messages,
-            max_tokens: 400, // Very short response
+            max_tokens: 600,
             temperature: 0.7,
           });
 
           const reply = response.choices[0]?.message?.content?.trim();
-          return reply + '\n\n[Note: Answer based on small excerpt due to video length]';
+          return reply + '\n\n[Note: Answer based on excerpt due to video length]';
         } catch (secondError) {
-          console.error('Ultra emergency chat truncation also failed:', secondError);
+          console.error('Emergency chat truncation also failed:', secondError);
           return "I'm sorry, but this video is too long for me to process in chat. Please try asking about a shorter video, or use the summarization feature first to get key points.";
         }
       }
