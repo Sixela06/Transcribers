@@ -1,17 +1,29 @@
 import { apiService } from './api';
-import { ChatMessage, ChatSession } from '../types/video';
+import { ChatMessage } from '../types/video';
 
+// Send chat message with transcript included in request
 export const sendChatMessage = async (
-  videoId: string, 
-  message: string
+  transcript: string,
+  message: string,
+  chatHistory: ChatMessage[] = []
 ): Promise<ChatMessage> => {
-  return apiService.post<ChatMessage>(`/chat/${videoId}/message`, { message });
+  return apiService.post<ChatMessage>('/chat/message', {
+    transcript,
+    message,
+    chatHistory: chatHistory.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }))
+  });
 };
 
-export const getChatHistory = async (videoId: string): Promise<ChatSession> => {
-  return apiService.get<ChatSession>(`/chat/${videoId}/history`);
+// Legacy functions kept for backward compatibility (though not used in new approach)
+export const getChatHistory = async (videoId: string): Promise<{ messages: ChatMessage[] }> => {
+  // Return empty since we're using in-memory chat now
+  return { messages: [] };
 };
 
-export const createChatSession = async (videoId: string): Promise<ChatSession> => {
-  return apiService.post<ChatSession>(`/chat/${videoId}`, {});
+export const createChatSession = async (videoId: string): Promise<{ messages: ChatMessage[] }> => {
+  // Return empty since we're using in-memory chat now
+  return { messages: [] };
 };

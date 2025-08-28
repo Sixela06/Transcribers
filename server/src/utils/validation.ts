@@ -79,6 +79,31 @@ export const validateSendMessage = (data: any) => {
   return schema.validate(data);
 };
 
+// New validation for memory-based chat
+export const validateSendMessageWithTranscript = (data: any) => {
+  const schema = Joi.object({
+    transcript: Joi.string().min(1).required().messages({
+      'string.min': 'Transcript cannot be empty',
+      'any.required': 'Transcript is required',
+    }),
+    message: Joi.string().min(1).max(2000).required().messages({
+      'string.min': 'Message cannot be empty',
+      'string.max': 'Message cannot exceed 2000 characters',
+      'any.required': 'Message is required',
+    }),
+    chatHistory: Joi.array().items(
+      Joi.object({
+        role: Joi.string().valid('user', 'assistant').required(),
+        content: Joi.string().required(),
+      })
+    ).optional().default([]).messages({
+      'array.base': 'Chat history must be an array',
+    }),
+  });
+
+  return schema.validate(data);
+};
+
 // User validation schemas
 export const validateUpdateProfile = (data: any) => {
   const schema = Joi.object({

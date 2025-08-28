@@ -56,7 +56,6 @@ const Home: React.FC = () => {
 
     setLoading(true);
     try {
-      // Fixed: Ensure proper request format with correct field names
       const response = await summarizeVideo({ 
         youtubeUrl: url,
         summaryType: 'STANDARD'
@@ -76,7 +75,6 @@ const Home: React.FC = () => {
     } catch (error: any) {
       console.error('Summarization error:', error);
       
-      // Improved error handling
       let errorMessage = 'Failed to summarize video';
       
       if (error?.response?.data?.error) {
@@ -103,14 +101,25 @@ const Home: React.FC = () => {
 
     setChatLoading(true);
     try {
-      const response = await sendChatMessage(videoData.metadata.id, message);
+      // NEW APPROACH: Pass transcript directly to chat service
+      const transcriptContent = videoData.transcript.fullText || '';
+      
+      // Send message with transcript and existing chat messages
+      const response = await sendChatMessage(transcriptContent, message, chatMessages);
+      
+      // Update chat messages with user message and AI response
       setChatMessages(prev => [...prev, 
-        { id: Date.now().toString(), role: 'user', content: message, timestamp: new Date().toISOString() },
+        { 
+          id: Date.now().toString(), 
+          role: 'user', 
+          content: message, 
+          timestamp: new Date().toISOString() 
+        },
         response
       ]);
     } catch (error: any) {
-      const message = error?.response?.data?.error || error?.message || 'Failed to send message';
-      toast.error(message);
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to send message';
+      toast.error(errorMessage);
     } finally {
       setChatLoading(false);
     }
@@ -135,7 +144,7 @@ const Home: React.FC = () => {
       });
     }
 
-    // Always show summary tab if we have video data (show login prompt if not authenticated)
+    // Always show summary tab if we have video data
     if (videoData && videoData.transcript) {
       tabs.push({
         id: 'summary',
@@ -159,7 +168,7 @@ const Home: React.FC = () => {
       });
     }
 
-    // Always show chat tab if we have video data (show login prompt if not authenticated)
+    // Always show chat tab if we have video data
     if (videoData && videoData.transcript) {
       tabs.push({
         id: 'chat',
@@ -167,7 +176,7 @@ const Home: React.FC = () => {
         icon: <MessageCircle className="h-4 w-4" />,
         content: isAuthenticated ? (
           <VideoChat
-            videoId={videoData.metadata.id}
+            videoId={videoData.metadata.youtubeId} // Use youtubeId for display purposes
             metadata={videoData.metadata}
             messages={chatMessages}
             onSendMessage={handleSendChatMessage}

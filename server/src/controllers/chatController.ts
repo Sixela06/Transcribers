@@ -1,9 +1,34 @@
 import { Request, Response } from 'express';
 import { ChatService } from '../services/chatService';
-import { validateSendMessage } from '../utils/validation';
+import { validateSendMessage, validateSendMessageWithTranscript } from '../utils/validation';
 import { AuthenticatedRequest } from '../middleware/auth';
 
 export class ChatController {
+  // New memory-based chat method
+  static async sendMessageWithTranscript(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { error } = validateSendMessageWithTranscript(req.body);
+      if (error) {
+        res.status(400).json({ error: error.details[0].message });
+        return;
+      }
+
+      const { transcript, message, chatHistory = [] } = req.body;
+
+      const result = await ChatService.sendMessageWithTranscript(
+        transcript,
+        message,
+        chatHistory
+      );
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('Send message error:', error);
+      res.status(400).json({ error: error.message });
+    }
+  }
+
+  // Legacy methods kept for backward compatibility
   static async sendMessage(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { error } = validateSendMessage(req.body);

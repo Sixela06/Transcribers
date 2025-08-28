@@ -8,7 +8,10 @@ const router = express.Router();
 // All chat routes require authentication
 router.use(authenticate);
 
-// Chat endpoints use AI and should be rate limited
+// New memory-based chat endpoint - no videoId needed
+router.post('/message', aiLimiter, ChatController.sendMessageWithTranscript);
+
+// Keep legacy routes for backward compatibility (if needed elsewhere)
 router.post('/:videoId/message', aiLimiter, ChatController.sendMessage);
 router.get('/:videoId/history', ChatController.getChatHistory);
 router.get('/sessions', ChatController.getUserSessions);

@@ -13,9 +13,9 @@ export class AIService {
     'gpt-4-turbo': 128000
   };
 
-  // Rough estimation: 1 token ≈ 0.75 words (4 characters)
+  // Better token estimation - OpenAI's actual ratio is closer to 1 token = 3 characters
   private static estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4);
+    return Math.ceil(text.length / 3); // More accurate estimation
   }
 
   private static truncateTranscript(transcript: string, maxTokens: number): { text: string; truncated: boolean } {
@@ -274,26 +274,33 @@ export class AIService {
     chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
   ): Promise<string> {
     try {
-      // For chat, be even more conservative - 80% of limit
-      const maxTokens = Math.floor(this.TOKEN_LIMITS['gpt-3.5-turbo'] * 0.8) - 2000; // ~11,000 tokens
-      const { text: processedTranscript } = this.truncateTranscript(transcript, maxTokens);
+      // For chat, be VERY conservative - 50% of limit (50% buffer for chat history + system prompt)
+      const maxTranscriptTokens = Math.floor(this.TOKEN_LIMITS['gpt-3.5-turbo'] * 0.5) - 2000; // ~6,200 tokens for transcript
+      
+      const estimatedTokens = this.estimateTokens(transcript);
+      console.log(`💬 Chat token analysis: transcript ~${estimatedTokens} tokens (limit: ${maxTranscriptTokens})`);
+      
+      const { text: processedTranscript, truncated } = this.truncateTranscript(transcript, maxTranscriptTokens);
 
-      const systemPrompt = `You are a helpful AI assistant that can answer questions about a specific video based on its transcript. Here is the transcript of the video:
+      const systemPrompt = `You are a helpful AI assistant answering questions about a video. Here is the transcript:
 
 ${processedTranscript}
 
-Please answer questions based on the content of this transcript. Be accurate and helpful, and reference specific parts of the video when relevant. If a question cannot be answered based on the transcript, politely explain that the information is not available in the video.`;
+Answer based on this content. Be helpful and reference specific parts when relevant.${truncated ? ' Note: Transcript shortened for processing.' : ''}`;
+
+      // Limit chat history to last 3 messages to save tokens
+      const limitedHistory = chatHistory.slice(-3);
 
       const messages = [
         { role: 'system' as const, content: systemPrompt },
-        ...chatHistory,
+        ...limitedHistory,
         { role: 'user' as const, content: userMessage }
       ];
 
       const response = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages,
-        max_tokens: 800,
+        max_tokens: 600, // Reduced response length
         temperature: 0.7,
       });
 
@@ -305,6 +312,40 @@ Please answer questions based on the content of this transcript. Be accurate and
       return reply;
     } catch (error: any) {
       console.error('OpenAI Chat Error:', error.code, error.message);
+      
+      if (error.code === 'context_length_exceeded') {
+        console.log('⚠️  Chat context length exceeded, trying ULTRA emergency truncation');
+        try {
+          // ULTRA-aggressive truncation - only 2000 tokens for transcript
+          const { text } = this.truncateTranscript(transcript, 2000);
+          
+          const systemPrompt = `Answer questions about this video excerpt:
+
+${text}
+
+Note: This is a small excerpt from a longer video.`;
+
+          // No chat history in emergency mode
+          const messages = [
+            { role: 'system' as const, content: systemPrompt },
+            { role: 'user' as const, content: userMessage }
+          ];
+
+          const response = await openai.chat.completions.create({
+            model: 'gpt-3.5-turbo',
+            messages,
+            max_tokens: 400, // Very short response
+            temperature: 0.7,
+          });
+
+          const reply = response.choices[0]?.message?.content?.trim();
+          return reply + '\n\n[Note: Answer based on small excerpt due to video length]';
+        } catch (secondError) {
+          console.error('Ultra emergency chat truncation also failed:', secondError);
+          return "I'm sorry, but this video is too long for me to process in chat. Please try asking about a shorter video, or use the summarization feature first to get key points.";
+        }
+      }
+      
       throw new Error('Failed to generate response');
     }
   }

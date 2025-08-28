@@ -6,9 +6,9 @@ const prisma = new PrismaClient();
 export interface ChatMessage {
   id: string;
   content: string;
-  role: 'user' | 'assistant'; // Changed to match frontend expectations
+  role: 'user' | 'assistant';
   createdAt: Date;
-  timestamp?: string; // Added for frontend
+  timestamp?: string;
 }
 
 export interface ChatSession {
@@ -20,15 +20,65 @@ export interface ChatSession {
 }
 
 export class ChatService {
+  // New memory-based chat method - no database dependency
+  static async sendMessageWithTranscript(
+    transcript: string,
+    message: string,
+    chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  ): Promise<ChatMessage> {
+    try {
+      // Clean transcript content if it has embedded segments
+      let cleanTranscript = transcript;
+      
+      if (transcript.includes('\n')) {
+        const lines = transcript.split('\n');
+        if (lines[0].startsWith('[{') && lines[0].includes('"start":')) {
+          // Extract text content after segments
+          cleanTranscript = lines.slice(1).join('\n').trim();
+          
+          // If no text content after segments, extract from segments
+          if (!cleanTranscript) {
+            try {
+              const segments = JSON.parse(lines[0]);
+              cleanTranscript = segments.map((s: any) => s.text).join(' ');
+            } catch (e) {
+              cleanTranscript = transcript;
+            }
+          }
+        }
+      }
+
+      // Generate AI response using the AIService (which has smart truncation)
+      const aiResponseContent = await AIService.chatWithTranscript(
+        cleanTranscript,
+        message,
+        chatHistory
+      );
+
+      // Return AI response in expected format
+      return {
+        id: Date.now().toString(),
+        content: aiResponseContent,
+        role: 'assistant',
+        createdAt: new Date(),
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      console.error('Chat service error:', error);
+      throw new Error(`Failed to process chat message: ${error.message}`);
+    }
+  }
+
+  // Legacy database-based method - kept for backward compatibility
   static async sendMessage(
     userId: string,
-    videoId: string, // This is actually the youtubeId from the URL
+    videoId: string, // This is youtubeId from URL
     message: string
   ): Promise<ChatMessage> {
-    // FIXED: Look up video by youtubeId instead of database id
+    // Look up video by youtubeId
     const video = await prisma.video.findFirst({
       where: {
-        youtubeId: videoId, // Changed from id to youtubeId
+        youtubeId: videoId,
         userId,
       },
       include: {
@@ -48,7 +98,7 @@ export class ChatService {
     let session = await prisma.chatSession.findFirst({
       where: {
         userId,
-        videoId: video.id, // Use the database ID for session
+        videoId: video.id,
       },
       include: {
         messages: {
@@ -58,7 +108,6 @@ export class ChatService {
     });
 
     if (!session) {
-      // Create new session with a title based on the first message
       const title = message.length > 50 
         ? message.substring(0, 50) + '...' 
         : message;
@@ -66,7 +115,7 @@ export class ChatService {
       session = await prisma.chatSession.create({
         data: {
           userId,
-          videoId: video.id, // Use database ID
+          videoId: video.id,
           title,
         },
         include: {
@@ -123,15 +172,13 @@ export class ChatService {
       },
     });
 
-    // Return just the AI response in the format expected by frontend
     return this.formatChatMessage(aiMessage);
   }
 
   static async getChatHistory(
     userId: string,
-    videoId: string // This is youtubeId
+    videoId: string
   ): Promise<ChatSession | null> {
-    // FIXED: Look up video by youtubeId
     const video = await prisma.video.findFirst({
       where: {
         youtubeId: videoId,
@@ -146,7 +193,7 @@ export class ChatService {
     const session = await prisma.chatSession.findFirst({
       where: {
         userId,
-        videoId: video.id, // Use database ID
+        videoId: video.id,
       },
       include: {
         messages: {
@@ -216,9 +263,9 @@ export class ChatService {
     return {
       id: message.id,
       content: message.content,
-      role: message.role.toLowerCase() as 'user' | 'assistant', // Now matches interface
+      role: message.role.toLowerCase() as 'user' | 'assistant',
       createdAt: message.createdAt,
-      timestamp: message.createdAt.toISOString(), // Add timestamp for frontend
+      timestamp: message.createdAt.toISOString(),
     };
   }
 }
